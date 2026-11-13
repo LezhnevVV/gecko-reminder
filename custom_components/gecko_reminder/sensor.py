@@ -35,7 +35,9 @@ class FeedingSensor(SensorEntity):
         entries = self._journal.entries
         return {"entries": entries, "last_feeding": entries[-1]["date"] if entries else None,
                 "feeding_interval_days": self._journal.feeding_interval_days,
-                "next_feeding": self._journal.next_feeding}
+                "next_feeding": self._journal.next_feeding,
+                "reminder": self._journal.reminder,
+                "last_reminder_date": self._journal.last_reminder_date}
 
     async def async_added_to_hass(self):
         self.async_on_remove(async_dispatcher_connect(

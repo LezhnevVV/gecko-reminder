@@ -8,7 +8,7 @@
   main { max-width:1150px; margin:auto; } .intro { display:flex; justify-content:space-between; gap:16px; align-items:center; margin-bottom:20px; flex-wrap:wrap; } p { margin:0; line-height:1.6; } small { color:#68786c; } .intro button { padding:9px 14px; border:1px solid #cbd6cc; border-radius:8px; background:white; cursor:pointer; } gecko-feeding-card { box-shadow:0 12px 55px #2546260a; border-radius:20px; }
 </style>
 <main>
-  <div class="intro"><p><strong>Демо · Gecko Reminder</strong><br><small>Здесь записи сохраняются только в браузере. В Home Assistant — на сервере.</small></p><button id="reset">Сбросить демо</button></div>
+  <div class="intro"><p><strong>Демо · Gecko Reminder</strong><br><small>Здесь записи сохраняются только в браузере. Telegram-сообщения в демо не отправляются.</small></p><button id="reset">Сбросить демо</button></div>
   <gecko-feeding-card></gecko-feeding-card>
 </main>
 <script src="./custom_components/gecko_reminder/frontend/gecko-feeding-card.js"></script>
@@ -17,6 +17,9 @@
   const settingsKey = 'gecko-reminder-demo-interval';
   let interval = null;
   try { interval = JSON.parse(localStorage.getItem(settingsKey)); } catch {}
+  const reminderKey = 'gecko-reminder-demo-reminder';
+  let reminder = {enabled:false, time:'19:00', target:''};
+  try { reminder = JSON.parse(localStorage.getItem(reminderKey)) || reminder; } catch {}
   const now = new Date();
   const key = (day) => `${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,'0')}-${String(day).padStart(2,'0')}`;
   const examples = [
@@ -40,9 +43,14 @@
     }
     card.hass = {
       config: {time_zone:Intl.DateTimeFormat().resolvedOptions().timeZone},
-      states: {'sensor.gecko_reminder_feedings': {state:String(entries.length), attributes:{entries, feeding_interval_days:interval, next_feeding:nextFeeding}}},
+      states: {'sensor.gecko_reminder_feedings': {state:String(entries.length), attributes:{entries, feeding_interval_days:interval, next_feeding:nextFeeding, reminder}}},
       async callService(domain, service, data) {
-        if (service === 'set_feeding_interval') {
+        if (service === 'save_settings' || service === 'set_feeding_interval') {
+          if (service === 'save_settings') {
+            const nextReminder = {enabled:data.reminder_enabled, time:data.reminder_time, target:data.reminder_target};
+            localStorage.setItem(reminderKey, JSON.stringify(nextReminder));
+            reminder = nextReminder;
+          }
           localStorage.setItem(settingsKey, JSON.stringify(data.feeding_interval_days));
           interval = data.feeding_interval_days;
           refresh();
@@ -58,7 +66,7 @@
     };
   }
   document.querySelector('#reset').onclick = () => {
-    if (confirm('Сбросить записи демо?')) { localStorage.removeItem(storageKey); localStorage.removeItem(settingsKey); interval = null; entries = examples; refresh(); }
+    if (confirm('Сбросить записи демо?')) { localStorage.removeItem(storageKey); localStorage.removeItem(settingsKey); localStorage.removeItem(reminderKey); reminder = {enabled:false, time:'19:00', target:''}; interval = null; entries = examples; refresh(); }
   };
   refresh();
 </script>

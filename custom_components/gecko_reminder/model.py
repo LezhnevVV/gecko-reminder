@@ -1,6 +1,7 @@
 """Persistent feeding journal, independent of Home Assistant."""
 
 import asyncio
+import re
 from datetime import date, timedelta
 from uuid import uuid4
 
@@ -35,9 +36,11 @@ def validate_feeding(data):
 class FeedingJournal:
     """Serialize mutations and expose changes only after successful persistence."""
 
-    def __init__(self, entries, save, feeding_interval_days=None):
+    def __init__(self, entries, save, feeding_interval_days=None, reminder=None, last_reminder_date=None):
         self.entries = entries
         self.feeding_interval_days = feeding_interval_days
+        self.reminder = reminder or {"enabled": False, "time": "19:00", "target": ""}
+        self.last_reminder_date = last_reminder_date
         self._save = save
         self._lock = asyncio.Lock()
 
@@ -45,7 +48,51 @@ class FeedingJournal:
         data = {"entries": entries}
         if interval is not None:
             data["feeding_interval_days"] = interval
+        if self.reminder != {"enabled": False, "time": "19:00", "target": ""}:
+            data["reminder"] = self.reminder
+        if self.last_reminder_date:
+            data["last_reminder_date"] = self.last_reminder_date
         return data
+
+    async def set_settings(self, days, reminder):
+        if days is not None and (type(days) is not int or not 1 <= days <= 365):
+            raise ValueError("Периодичность должна быть целым числом от 1 до 365 дней")
+        if set(reminder) != {"enabled", "time", "target"} or type(reminder["enabled"]) is not bool:
+            raise ValueError("Некорректные настройки уведомлений")
+        if not isinstance(reminder["time"], str) or not re.fullmatch(r"(?:[01]\d|2[0-3]):[0-5]\d", reminder["time"]):
+            raise ValueError("Укажите время в формате ЧЧ:ММ")
+        target = reminder["target"]
+        if not isinstance(target, str) or (target and not re.fullmatch(r"notify\.[a-z0-9_]+", target)):
+            raise ValueError("Укажите сущность или действие notify.…")
+        if reminder["enabled"] and (days is None or not target or target == "notify.send_message"):
+            raise ValueError("Для уведомлений укажите периодичность и получателя notify.…")
+        async with self._lock:
+            data = self._payload(self.entries, days)
+            data["reminder"] = dict(reminder)
+            await self._save(data)
+            self.feeding_interval_days = days
+            self.reminder = dict(reminder)
+
+    async def send_reminder_if_due(self, now, send):
+        """Run in HA local time, serializing sends with feeding and settings changes."""
+        async with self._lock:
+            today = now.date().isoformat()
+            if (not self.reminder["enabled"] or self.feeding_interval_days is None
+                    or self.last_reminder_date == today
+                    or now.strftime("%H:%M") < self.reminder["time"]):
+                return False
+            # Future records are not evidence that the pet has already eaten.
+            past = [e["date"] for e in self.entries if e["date"] <= today]
+            if not past:
+                return False
+            due = date.fromisoformat(max(past)) + timedelta(days=self.feeding_interval_days)
+            if due > now.date():
+                return False
+            await asyncio.wait_for(send(self.reminder["target"], due.isoformat()), timeout=30)
+            # Keep the in-memory marker even if disk persistence fails after sending.
+            self.last_reminder_date = today
+            await self._save(self._payload(self.entries, self.feeding_interval_days))
+            return True
 
     @property
     def next_feeding(self):

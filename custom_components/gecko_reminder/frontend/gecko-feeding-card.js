@@ -1,4 +1,4 @@
-/* Gecko Reminder 0.1.9 — no build step or external dependencies. */
+/* Gecko Reminder 0.1.10 — no build step or external dependencies. */
 const INSECTS = {cricket: "Сверчок", locust: "Саранча", dubia: "Таракан дубия", mealworm: "Мучной червь", superworm: "Зофобас", other: "Другое"};
 const INSECT_ICONS = {cricket: "🦗", locust: "🦗", dubia: "🪳", mealworm: "🐛", superworm: "🪱", other: "🐞"};
 const SUPPLEMENTS = {none: "Без добавки", calcium: "Кальций", calcium_d3: "Кальций + D3", vitamins: "Витамины"};
@@ -146,10 +146,15 @@ class GeckoFeedingCard extends HTMLElement {
         <div class="actions"><button type="button" class="danger" data-action="delete">Удалить</button><button type="button" data-action="cancel">Отмена</button><button type="submit" class="primary">Сохранить</button></div>
       </form></dialog>
       <dialog id="settings-dialog" aria-labelledby="settings-title"><form id="settings-form">
-        <h3 id="settings-title">Периодичность кормления</h3>
+        <h3 id="settings-title">Настройки кормления</h3>
         <label class="toggle"><input name="enabled" type="checkbox">Подсвечивать следующее кормление</label>
         <label>Кормить раз в сколько дней<input name="interval" type="number" min="1" max="365" step="1" required></label>
         <p class="muted">Следующая дата = дата последнего кормления + интервал. Без записей дата не рассчитывается. Если день пропущен, он остаётся выделенным до следующего кормления.</p>
+        <label class="toggle"><input name="reminder_enabled" type="checkbox">Напоминать в Telegram</label>
+        <label>Время уведомления<input name="reminder_time" type="time" step="60" required></label>
+        <label>Получатель Telegram<input name="reminder_target" type="text" list="notify-targets" placeholder="notify.telegram_…" pattern="notify\\.[a-z0-9_]+" required></label>
+        <datalist id="notify-targets"></datalist>
+        <p class="muted">Укажите сущность уведомлений или действие notify.… из настроенной интеграции Telegram Bot. Время — по часовому поясу Home Assistant. Напоминание приходит раз в день, пока кормление не отмечено. Для уведомлений включите периодичность выше.</p>
         <p id="settings-error" role="alert"></p>
         <div class="actions"><button type="button" data-action="cancel-settings">Отмена</button><button type="submit" class="primary">Сохранить</button></div>
       </form></dialog>`;
@@ -157,9 +162,7 @@ class GeckoFeedingCard extends HTMLElement {
       if (this._busy) event.preventDefault();
     });
     this.shadowRoot.querySelector('#settings-form').addEventListener('change', (event) => {
-      if (event.target.name === 'enabled') {
-        this.shadowRoot.querySelector('#settings-form').elements.namedItem('interval').disabled = !event.target.checked;
-      }
+      this._syncSettingsFields();
     });
     this.shadowRoot.querySelector("dialog").addEventListener("cancel", (event) => {
       if (this._busy) event.preventDefault();
@@ -175,6 +178,7 @@ class GeckoFeedingCard extends HTMLElement {
     this._available = !!state && !["unavailable", "unknown"].includes(state.state) && Array.isArray(state.attributes.entries);
     this._entries = this._available ? state.attributes.entries : [];
     this._interval = this._available ? state.attributes.feeding_interval_days ?? null : null;
+    this._reminder = this._available ? state.attributes.reminder ?? {enabled:false, time:'19:00', target:''} : {enabled:false, time:'19:00', target:''};
     const nextFeeding = this._available ? state.attributes.next_feeding : null;
     this.shadowRoot.querySelector('[data-action="settings"]').disabled = !this._available;
     this.shadowRoot.querySelector('#schedule').textContent = nextFeeding
@@ -219,7 +223,13 @@ class GeckoFeedingCard extends HTMLElement {
       const form = this.shadowRoot.querySelector('#settings-form');
       form.elements.namedItem('enabled').checked = this._interval !== null;
       form.elements.namedItem('interval').value = this._interval ?? 3;
-      form.elements.namedItem('interval').disabled = this._interval === null;
+      form.elements.namedItem('reminder_enabled').checked = this._reminder.enabled;
+      form.elements.namedItem('reminder_time').value = this._reminder.time;
+      form.elements.namedItem('reminder_target').value = this._reminder.target;
+      const targets = new Set(Object.keys(this._hass.states).filter((id) => id.startsWith('notify.')));
+      Object.keys(this._hass.services?.notify || {}).filter((name) => !['send_message','reload'].includes(name)).forEach((name) => targets.add(`notify.${name}`));
+      this.shadowRoot.querySelector('#notify-targets').innerHTML = [...targets].sort().map((id) => `<option value="${escapeHTML(id)}"></option>`).join('');
+      this._syncSettingsFields();
       this.shadowRoot.querySelector('#settings-error').textContent = '';
       this.shadowRoot.querySelector('#settings-dialog').showModal();
     } else if (action === "cancel-settings") {
@@ -234,6 +244,17 @@ class GeckoFeedingCard extends HTMLElement {
     } else if (action === "delete" && this._editingId) {
       if (window.confirm("Удалить это кормление из дневника?")) this._save("delete_feeding", {id: this._editingId});
     }
+  }
+
+  _syncSettingsFields() {
+    const form = this.shadowRoot.querySelector('#settings-form');
+    const scheduled = form.elements.namedItem('enabled').checked;
+    form.elements.namedItem('interval').disabled = !scheduled;
+    const toggle = form.elements.namedItem('reminder_enabled');
+    if (!scheduled) toggle.checked = false;
+    toggle.disabled = !scheduled;
+    form.elements.namedItem('reminder_time').disabled = !toggle.checked;
+    form.elements.namedItem('reminder_target').disabled = !toggle.checked;
   }
 
   _open(entry) {
@@ -251,7 +272,13 @@ class GeckoFeedingCard extends HTMLElement {
     if (this._busy || !event.target.reportValidity()) return;
     const data = Object.fromEntries(new FormData(event.target));
     if (event.target.id === 'settings-form') {
-      this._save('set_feeding_interval', {feeding_interval_days: data.enabled ? Number(data.interval) : null}, '#settings-dialog', '#settings-error');
+      const form = event.target;
+      this._save('save_settings', {
+        feeding_interval_days: data.enabled ? Number(data.interval) : null,
+        reminder_enabled: !!data.reminder_enabled,
+        reminder_time: form.elements.namedItem('reminder_time').value || '19:00',
+        reminder_target: form.elements.namedItem('reminder_target').value.trim(),
+      }, '#settings-dialog', '#settings-error');
       return;
     }
     data.count = Number(data.count);
@@ -272,8 +299,7 @@ class GeckoFeedingCard extends HTMLElement {
       this._busy = false;
       fields.forEach((el) => { el.disabled = false; });
       if (dialogSelector === '#settings-dialog') {
-        const form = this.shadowRoot.querySelector('#settings-form');
-        form.elements.namedItem('interval').disabled = !form.elements.namedItem('enabled').checked;
+        this._syncSettingsFields();
       }
     }
   }

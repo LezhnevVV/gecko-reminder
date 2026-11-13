@@ -24,6 +24,10 @@ function makeCard(entries = []) {
     },
     customElements: {get() {}, define(name, cls) { Card = cls; }},
     window: {}, Intl, Date, Map,
+    FormData: class {
+      constructor(form) { this.values = form.values; }
+      [Symbol.iterator]() { return Object.entries(this.values)[Symbol.iterator](); }
+    },
   });
   vm.runInContext(fs.readFileSync(path.join(__dirname, '../custom_components/gecko_reminder/frontend/gecko-feeding-card.js'), 'utf8'), context);
   const card = new Card();
@@ -81,6 +85,33 @@ test('Next feeding is highlighted and resets when scheduling is disabled', () =>
   }}}};
   assert.ok(!get('#calendar').innerHTML.includes('next-feeding'));
   assert.equal(get('#schedule').textContent, '');
+});
+
+test('Settings submit includes Telegram recipient and chosen time', () => {
+  const {card} = makeCard();
+  let captured;
+  card._save = (...args) => { captured = args; };
+  const values = {enabled:'on', interval:'3', reminder_enabled:'on', reminder_time:'20:15', reminder_target:' notify.telegram_pet '};
+  card._submit({preventDefault() {}, target: {
+    id:'settings-form', values, reportValidity:() => true,
+    elements:{namedItem: (name) => ({value:values[name]})},
+  }});
+  assert.equal(captured[0], 'save_settings');
+  assert.equal(captured[1].feeding_interval_days, 3);
+  assert.equal(captured[1].reminder_enabled, true);
+  assert.equal(captured[1].reminder_time, '20:15');
+  assert.equal(captured[1].reminder_target, 'notify.telegram_pet');
+  assert.equal(captured[2], '#settings-dialog');
+});
+
+test('Disabling the schedule disables Telegram fields', () => {
+  const {card, get} = makeCard();
+  const fields = {enabled:{checked:false}, interval:{}, reminder_enabled:{checked:true}, reminder_time:{}, reminder_target:{}};
+  get('#settings-form').elements = {namedItem: (name) => fields[name]};
+  card._syncSettingsFields();
+  assert.equal(fields.reminder_enabled.checked, false);
+  assert.equal(fields.reminder_time.disabled, true);
+  assert.equal(fields.reminder_target.disabled, true);
 });
 
 test('Failed save keeps the dialog open and reports an error; retry can succeed', async () => {
