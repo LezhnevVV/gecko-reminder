@@ -78,6 +78,40 @@ class JournalTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(self.journal.entries[0]["count"], 99)
         self.assertEqual(self.saved["entries"][0]["count"], 99)
 
+    async def test_interval_persistence_and_recalculation(self):
+        self.assertIsNone(self.journal.next_feeding)
+        await self.journal.set_interval(3)
+        self.assertIsNone(self.journal.next_feeding)
+        await self.journal.upsert({**FEEDING, "date": "2024-02-27"})
+        self.assertEqual(self.journal.next_feeding, "2024-03-01")
+        entry_id = self.journal.entries[0]["id"]
+        restored = model.FeedingJournal(self.saved["entries"], self.journal._save,
+                                        self.saved["feeding_interval_days"])
+        self.assertEqual(restored.next_feeding, "2024-03-01")
+        await self.journal.upsert({**FEEDING, "date": "2024-12-31"}, entry_id)
+        self.assertEqual(self.journal.next_feeding, "2025-01-03")
+        await self.journal.delete(entry_id)
+        self.assertIsNone(self.journal.next_feeding)
+        self.assertEqual(self.saved["feeding_interval_days"], 3)
+        await self.journal.set_interval(None)
+        self.assertNotIn("feeding_interval_days", self.saved)
+
+    async def test_interval_validation_failure_and_concurrency(self):
+        for days in (0, -1, 366, 1.5, True, "3"):
+            with self.subTest(days=days), self.assertRaises(ValueError):
+                await self.journal.set_interval(days)
+        await asyncio.gather(self.journal.set_interval(365), self.journal.upsert(FEEDING))
+        self.assertEqual(self.saved["feeding_interval_days"], 365)
+        self.assertEqual(len(self.saved["entries"]), 1)
+
+        async def fail(data):
+            raise OSError("disk unavailable")
+
+        self.journal._save = fail
+        with self.assertRaises(OSError):
+            await self.journal.set_interval(1)
+        self.assertEqual(self.journal.feeding_interval_days, 365)
+
     async def test_validation(self):
         for patch in ({"date": "2026-02-30"}, {"date": "20261111"}, {"date": None},
                       {"count": 0}, {"count": 1.5}, {"count": True}, {"count": 100}, {"count": 1000},

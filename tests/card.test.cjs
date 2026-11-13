@@ -68,6 +68,21 @@ test('State updates keep the form and its draft intact', () => {
   card.hass = {states: {'sensor.gecko': {state: '0', attributes: {entries: []}}}};
 });
 
+test('Next feeding is highlighted and resets when scheduling is disabled', () => {
+  const {card, get} = makeCard();
+  card.hass = {states: {'sensor.gecko': {state: '1', attributes: {
+    entries: [{id:'a', date:'2024-02-26', insect:'cricket', count:5, supplement:'none'}],
+    feeding_interval_days:3, next_feeding:'2024-02-29',
+  }}}};
+  assert.match(get('#calendar').innerHTML, /class="day today unfed next-feeding"/);
+  assert.match(get('#schedule').textContent, /29\.02\.2024/);
+  card.hass = {states: {'sensor.gecko': {state: '0', attributes: {
+    entries: [], feeding_interval_days:null, next_feeding:null,
+  }}}};
+  assert.ok(!get('#calendar').innerHTML.includes('next-feeding'));
+  assert.equal(get('#schedule').textContent, '');
+});
+
 test('Failed save keeps the dialog open and reports an error; retry can succeed', async () => {
   const {card, get} = makeCard();
   card._hass.callService = async () => { throw new Error('Storage failed'); };

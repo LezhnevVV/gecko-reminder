@@ -14,6 +14,9 @@
 <script src="./custom_components/gecko_reminder/frontend/gecko-feeding-card.js"></script>
 <script>
   const storageKey = 'gecko-reminder-demo-v1';
+  const settingsKey = 'gecko-reminder-demo-interval';
+  let interval = null;
+  try { interval = JSON.parse(localStorage.getItem(settingsKey)); } catch {}
   const now = new Date();
   const key = (day) => `${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,'0')}-${String(day).padStart(2,'0')}`;
   const examples = [
@@ -28,10 +31,23 @@
   const card = document.querySelector('gecko-feeding-card');
   card.setConfig({entity:'sensor.gecko_reminder_feedings', title:'Эублефар · дневник кормлений'});
   function refresh() {
+    let nextFeeding = null;
+    if (interval && entries.length) {
+      const last = entries.map((e) => e.date).sort().at(-1);
+      const [year, month, day] = last.split('-').map(Number);
+      const next = new Date(year, month - 1, day + interval);
+      nextFeeding = `${next.getFullYear()}-${String(next.getMonth()+1).padStart(2,'0')}-${String(next.getDate()).padStart(2,'0')}`;
+    }
     card.hass = {
       config: {time_zone:Intl.DateTimeFormat().resolvedOptions().timeZone},
-      states: {'sensor.gecko_reminder_feedings': {state:String(entries.length), attributes:{entries}}},
+      states: {'sensor.gecko_reminder_feedings': {state:String(entries.length), attributes:{entries, feeding_interval_days:interval, next_feeding:nextFeeding}}},
       async callService(domain, service, data) {
+        if (service === 'set_feeding_interval') {
+          localStorage.setItem(settingsKey, JSON.stringify(data.feeding_interval_days));
+          interval = data.feeding_interval_days;
+          refresh();
+          return;
+        }
         const id = data.id || crypto.randomUUID();
         const next = entries.filter((e) => e.id !== id);
         if (service === 'save_feeding') next.push({...data, id});
@@ -42,7 +58,7 @@
     };
   }
   document.querySelector('#reset').onclick = () => {
-    if (confirm('Сбросить записи демо?')) { localStorage.removeItem(storageKey); entries = examples; refresh(); }
+    if (confirm('Сбросить записи демо?')) { localStorage.removeItem(storageKey); localStorage.removeItem(settingsKey); interval = null; entries = examples; refresh(); }
   };
   refresh();
 </script>

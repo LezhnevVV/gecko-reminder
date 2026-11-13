@@ -1,3 +1,16 @@
+set_feeding_interval:
+  name: Настроить периодичность кормления
+  description: Интервал после последней записи. Передайте null для отключения подсветки.
+  fields:
+    feeding_interval_days:
+      name: Раз в сколько дней кормить
+      required: true
+      selector:
+        number:
+          min: 1
+          max: 365
+          step: 1
+          mode: box
 save_feeding:
   name: Сохранить кормление
   description: Создать кормление или изменить запись по её id.

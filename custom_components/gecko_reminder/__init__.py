@@ -40,7 +40,8 @@ async def async_setup(hass: HomeAssistant, config: dict) -> bool:
 async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     store = Store(hass, 1, DOMAIN)
     saved = await store.async_load()
-    journal = FeedingJournal(saved["entries"] if saved else [], store.async_save)
+    journal = FeedingJournal(saved["entries"] if saved else [], store.async_save,
+                             saved.get("feeding_interval_days") if saved else None)
     hass.data[DOMAIN] = journal
     await hass.config_entries.async_forward_entry_setups(entry, PLATFORMS)
 
@@ -60,6 +61,16 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
             raise ServiceValidationError(str(err)) from err
         async_dispatcher_send(hass, UPDATE_SIGNAL)
 
+    async def handle_settings(call: ServiceCall):
+        try:
+            await journal.set_interval(call.data["feeding_interval_days"])
+        except ValueError as err:
+            raise ServiceValidationError(str(err)) from err
+        async_dispatcher_send(hass, UPDATE_SIGNAL)
+
+    hass.services.async_register(DOMAIN, "set_feeding_interval", handle_settings,
+                                 schema=vol.Schema({vol.Required("feeding_interval_days"):
+                                                    vol.Any(None, vol.All(int, vol.Range(min=1, max=365)))}))
     hass.services.async_register(DOMAIN, "save_feeding", handle_upsert, schema=FEEDING_SCHEMA)
     hass.services.async_register(DOMAIN, "delete_feeding", handle_delete,
                                  schema=vol.Schema({vol.Required("id"): cv.string}))
@@ -71,5 +82,6 @@ async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         return False
     hass.services.async_remove(DOMAIN, "save_feeding")
     hass.services.async_remove(DOMAIN, "delete_feeding")
+    hass.services.async_remove(DOMAIN, "set_feeding_interval")
     hass.data.pop(DOMAIN)
     return True

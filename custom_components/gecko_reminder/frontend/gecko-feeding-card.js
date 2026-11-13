@@ -1,4 +1,4 @@
-/* Gecko Reminder 0.1.8 — no build step or external dependencies. */
+/* Gecko Reminder 0.1.9 — no build step or external dependencies. */
 const INSECTS = {cricket: "Сверчок", locust: "Саранча", dubia: "Таракан дубия", mealworm: "Мучной червь", superworm: "Зофобас", other: "Другое"};
 const INSECT_ICONS = {cricket: "🦗", locust: "🦗", dubia: "🪳", mealworm: "🐛", superworm: "🪱", other: "🐞"};
 const SUPPLEMENTS = {none: "Без добавки", calcium: "Кальций", calcium_d3: "Кальций + D3", vitamins: "Витамины"};
@@ -74,10 +74,17 @@ class GeckoFeedingCard extends HTMLElement {
         .day.unfed { background:#fceef1; background:color-mix(in srgb, var(--card-background-color,#fff) 85%, #e8a1b3); }
         .day.today { border:2px solid var(--gecko-accent); padding:5px; }
         .day.empty { opacity:.25; }
+        .day.next-feeding { background:#e2edff; background:color-mix(in srgb, var(--card-background-color,#fff) 80%, #73a8f5); box-shadow:inset 0 0 0 2px #397bd1; }
+        .day.next-feeding .date-number::after { content:" •"; color:#397bd1; }
+        #schedule { padding:0 18px 10px; font-size:12px; color:var(--secondary-text-color,#67766d); }
+        #schedule:empty { display:none; }
+        .toggle { display:flex; align-items:center; gap:8px; }
+        .toggle input { width:20px; height:20px; }
+        #settings-error { color:var(--error-color,#b3261e); font-size:13px; }
+        [data-action="settings"] { font-size:22px; line-height:1; }
         .date-number { position:absolute; top:8px; left:11px; font-size:14px; font-weight:600; pointer-events:none; }
         .day.fed .date-number { position:static; min-height:23px; padding:1px 5px; }
         .date { display:grid; place-items:center; flex:1; width:100%; border:0; min-height:76px; padding:10px 5px; background:transparent; }
-        .date span { color:var(--gecko-accent); font-size:48px; line-height:1; font-weight:400; }
         .feeding { text-align:left; display:flex; flex-wrap:wrap; align-items:center; gap:5px; width:100%; margin-top:3px; padding:5px; background:var(--card-background-color,#fff); border-radius:8px; overflow-wrap:anywhere; }
         .feeding strong { display:flex; align-items:center; gap:4px; flex:1 0 auto; min-width:max-content; font-size:18px; line-height:1.2; white-space:nowrap; }
         .insect-icon { font-size:30px; line-height:1; }
@@ -108,7 +115,6 @@ class GeckoFeedingCard extends HTMLElement {
           .date-number { top:5px; left:5px; font-size:12px; }
           .day.fed .date-number { min-height:20px; padding:1px 2px; }
           .date { min-width:0; min-height:76px; padding:8px 0; }
-          .date span { font-size:32px; }
           .feeding { flex-direction:column; flex-wrap:nowrap; gap:3px; min-width:0; margin-top:2px; padding:4px 1px; border-radius:5px; }
           .feeding strong { flex:initial; flex-direction:column; gap:1px; min-width:0; font-size:11px; }
           .insect-icon { font-size:22px; }
@@ -120,13 +126,14 @@ class GeckoFeedingCard extends HTMLElement {
       </style>
       <ha-card>
         <p id="summary"></p>
-        <nav aria-label="Выбор месяца"><span id="month"></span><button data-action="prev" aria-label="Предыдущий месяц">←</button><button data-action="today">Сегодня</button><button data-action="next" aria-label="Следующий месяц">→</button></nav>
+        <nav aria-label="Выбор месяца"><span id="month"></span><button data-action="settings" aria-label="Настройки кормления" title="Настройки кормления">⚙</button><button data-action="prev" aria-label="Предыдущий месяц">←</button><button data-action="today">Сегодня</button><button data-action="next" aria-label="Следующий месяц">→</button></nav>
         <p id="status" role="status"></p>
+        <p id="schedule" role="status"></p>
         <div class="scroll" tabindex="0" aria-label="Календарь кормлений">
           <div class="week">${["ПН", "ВТ", "СР", "ЧТ", "ПТ", "СБ", "ВС"].map((d) => `<span>${d}</span>`).join("")}</div>
           <div id="calendar"></div>
         </div>
-        <footer><span>Нажмите на дату, чтобы добавить кормление</span></footer>
+        <footer><span>Нажмите на пустой день, чтобы добавить кормление</span></footer>
       </ha-card>
       <dialog aria-labelledby="form-title"><form>
         <h3 id="form-title">Кормление</h3>
@@ -137,7 +144,23 @@ class GeckoFeedingCard extends HTMLElement {
         <label>Заметка<textarea name="notes" rows="2" maxlength="500" placeholder="Необязательно"></textarea></label>
         <p id="form-error" role="alert"></p>
         <div class="actions"><button type="button" class="danger" data-action="delete">Удалить</button><button type="button" data-action="cancel">Отмена</button><button type="submit" class="primary">Сохранить</button></div>
+      </form></dialog>
+      <dialog id="settings-dialog" aria-labelledby="settings-title"><form id="settings-form">
+        <h3 id="settings-title">Периодичность кормления</h3>
+        <label class="toggle"><input name="enabled" type="checkbox">Подсвечивать следующее кормление</label>
+        <label>Кормить раз в сколько дней<input name="interval" type="number" min="1" max="365" step="1" required></label>
+        <p class="muted">Следующая дата = дата последнего кормления + интервал. Без записей дата не рассчитывается. Если день пропущен, он остаётся выделенным до следующего кормления.</p>
+        <p id="settings-error" role="alert"></p>
+        <div class="actions"><button type="button" data-action="cancel-settings">Отмена</button><button type="submit" class="primary">Сохранить</button></div>
       </form></dialog>`;
+    this.shadowRoot.querySelector('#settings-dialog').addEventListener('cancel', (event) => {
+      if (this._busy) event.preventDefault();
+    });
+    this.shadowRoot.querySelector('#settings-form').addEventListener('change', (event) => {
+      if (event.target.name === 'enabled') {
+        this.shadowRoot.querySelector('#settings-form').elements.namedItem('interval').disabled = !event.target.checked;
+      }
+    });
     this.shadowRoot.querySelector("dialog").addEventListener("cancel", (event) => {
       if (this._busy) event.preventDefault();
     });
@@ -151,6 +174,12 @@ class GeckoFeedingCard extends HTMLElement {
     const state = this._hass.states[this._config.entity];
     this._available = !!state && !["unavailable", "unknown"].includes(state.state) && Array.isArray(state.attributes.entries);
     this._entries = this._available ? state.attributes.entries : [];
+    this._interval = this._available ? state.attributes.feeding_interval_days ?? null : null;
+    const nextFeeding = this._available ? state.attributes.next_feeding : null;
+    this.shadowRoot.querySelector('[data-action="settings"]').disabled = !this._available;
+    this.shadowRoot.querySelector('#schedule').textContent = nextFeeding
+      ? `Следующее кормление: ${nextFeeding.split('-').reverse().join('.')} · раз в ${this._interval} дн.`
+      : this._interval ? 'Добавьте первое кормление, чтобы рассчитать следующую дату' : '';
     this.shadowRoot.querySelector("#status").textContent = this._available ? "" : `Датчик ${this._config.entity} недоступен. Проверьте интеграцию и entity в настройках карточки.`;
     const year = this._month.getFullYear(), month = this._month.getMonth();
     this.shadowRoot.querySelector("#month").textContent = this._month.toLocaleDateString("ru-RU", {month: "long", year: "numeric"});
@@ -165,9 +194,9 @@ class GeckoFeedingCard extends HTMLElement {
     for (let day = 1; day <= days; day++) {
       const key = dateKey(year, month, day);
       const feedingStatus = this._available ? (byDay.has(key) ? "fed" : "unfed") : "";
-      html += `<div class="day ${key === this._today() ? "today" : ""} ${feedingStatus}"><span class="date-number">${day}</span>`;
+      html += `<div class="day ${key === this._today() ? "today" : ""} ${feedingStatus}${key === nextFeeding ? " next-feeding" : ""}"${key === nextFeeding ? ' title="Следующее кормление"' : ""}><span class="date-number">${day}</span>`;
       if (!byDay.has(key)) {
-        html += `<button class="date" data-date="${key}" ${!this._available ? "disabled" : ""} aria-label="Добавить кормление ${key}"><span aria-hidden="true">+</span></button>`;
+        html += `<button class="date" data-date="${key}" ${!this._available ? "disabled" : ""} aria-label="Добавить кормление ${key}" title="Добавить кормление"></button>`;
       }
       html += (byDay.get(key) || []).map((e) => `<button class="feeding" data-id="${escapeHTML(e.id)}" title="${escapeHTML(e.notes || "Изменить кормление")}" aria-label="${escapeHTML(`${key}: ${INSECTS[e.insect] || e.insect}, ${e.count} шт., ${SUPPLEMENTS[e.supplement] || e.supplement}. Изменить`)}"><strong><span class="insect-icon" role="img" title="${escapeHTML(INSECTS[e.insect] || e.insect)}" aria-label="${escapeHTML(INSECTS[e.insect] || e.insect)}">${escapeHTML(INSECT_ICONS[e.insect] || INSECT_ICONS.other)}</span><span>× ${escapeHTML(e.count)}</span></strong><span class="supplement ${escapeHTML(e.supplement)}" role="img" title="${escapeHTML(SUPPLEMENTS[e.supplement] || e.supplement)}" aria-label="${escapeHTML(SUPPLEMENTS[e.supplement] || e.supplement)}"><svg viewBox="0 0 24 24" aria-hidden="true">${SUPPLEMENT_ICONS[e.supplement] || SUPPLEMENT_ICONS.none}</svg></span>${e.notes ? '<span aria-label="Есть заметка"> · ✎</span>' : ""}</button>`).join("");
       html += "</div>";
@@ -186,6 +215,15 @@ class GeckoFeedingCard extends HTMLElement {
     } else if (action === "today") {
       this._month = null;
       this._refresh();
+    } else if (action === "settings" && this._available) {
+      const form = this.shadowRoot.querySelector('#settings-form');
+      form.elements.namedItem('enabled').checked = this._interval !== null;
+      form.elements.namedItem('interval').value = this._interval ?? 3;
+      form.elements.namedItem('interval').disabled = this._interval === null;
+      this.shadowRoot.querySelector('#settings-error').textContent = '';
+      this.shadowRoot.querySelector('#settings-dialog').showModal();
+    } else if (action === "cancel-settings") {
+      this.shadowRoot.querySelector('#settings-dialog').close();
     } else if (button.dataset.date) {
       if (this._available) this._open({date: button.dataset.date, count: 1, insect: "cricket", supplement: "none", notes: ""});
     } else if (button.dataset.id) {
@@ -212,23 +250,31 @@ class GeckoFeedingCard extends HTMLElement {
     event.preventDefault();
     if (this._busy || !event.target.reportValidity()) return;
     const data = Object.fromEntries(new FormData(event.target));
+    if (event.target.id === 'settings-form') {
+      this._save('set_feeding_interval', {feeding_interval_days: data.enabled ? Number(data.interval) : null}, '#settings-dialog', '#settings-error');
+      return;
+    }
     data.count = Number(data.count);
     if (this._editingId) data.id = this._editingId;
     this._save("save_feeding", data);
   }
 
-  async _save(service, data) {
+  async _save(service, data, dialogSelector = "dialog", errorSelector = "#form-error") {
     this._busy = true;
     const fields = this.shadowRoot.querySelectorAll("dialog button, dialog input, dialog select, dialog textarea");
     fields.forEach((el) => { el.disabled = true; });
     try {
       await this._hass.callService("gecko_reminder", service, data);
-      this.shadowRoot.querySelector("dialog").close();
+      this.shadowRoot.querySelector(dialogSelector).close();
     } catch (error) {
-      this.shadowRoot.querySelector("#form-error").textContent = `Не удалось сохранить: ${error.message || error}`;
+      this.shadowRoot.querySelector(errorSelector).textContent = `Не удалось сохранить: ${error.message || error}`;
     } finally {
       this._busy = false;
       fields.forEach((el) => { el.disabled = false; });
+      if (dialogSelector === '#settings-dialog') {
+        const form = this.shadowRoot.querySelector('#settings-form');
+        form.elements.namedItem('interval').disabled = !form.elements.namedItem('enabled').checked;
+      }
     }
   }
 }
