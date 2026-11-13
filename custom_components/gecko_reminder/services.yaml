@@ -1,0 +1,69 @@
+save_feeding:
+  name: Сохранить кормление
+  description: Создать кормление или изменить запись по её id.
+  fields:
+    id:
+      name: ID записи
+      description: Оставьте пустым для нового кормления.
+      selector:
+        text:
+    date:
+      name: Дата кормления
+      required: true
+      selector:
+        date:
+    insect:
+      name: Насекомое
+      required: true
+      selector:
+        select:
+          options:
+            - label: Сверчок
+              value: cricket
+            - label: Саранча
+              value: locust
+            - label: Таракан дубия
+              value: dubia
+            - label: Мучной червь
+              value: mealworm
+            - label: Зофобас
+              value: superworm
+            - label: Другое
+              value: other
+    count:
+      name: Количество
+      required: true
+      selector:
+        number:
+          min: 1
+          max: 1000
+          step: 1
+          mode: box
+    supplement:
+      name: Добавка
+      required: true
+      selector:
+        select:
+          options:
+            - label: Без добавки
+              value: none
+            - label: Кальций
+              value: calcium
+            - label: Кальций + D3
+              value: calcium_d3
+            - label: Витамины
+              value: vitamins
+    notes:
+      name: Заметка
+      selector:
+        text:
+          multiline: true
+delete_feeding:
+  name: Удалить кормление
+  description: Удалить одну запись по её id.
+  fields:
+    id:
+      name: ID записи
+      required: true
+      selector:
+        text:

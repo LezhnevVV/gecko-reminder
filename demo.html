@@ -1,0 +1,49 @@
+<!doctype html>
+<html lang="ru">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Gecko Reminder — прототип</title>
+<style>
+  body { margin:0; padding:32px 18px; background:#eef2eb; color:#25352d; font:15px system-ui,sans-serif; --primary-color:#47745a; --primary-text-color:#25352d; --secondary-text-color:#68786c; --card-background-color:#fff; --secondary-background-color:#f7f9f4; --divider-color:#e0e7dc; }
+  main { max-width:1150px; margin:auto; } .intro { display:flex; justify-content:space-between; gap:16px; align-items:center; margin-bottom:20px; flex-wrap:wrap; } p { margin:0; line-height:1.6; } small { color:#68786c; } .intro button { padding:9px 14px; border:1px solid #cbd6cc; border-radius:8px; background:white; cursor:pointer; } gecko-feeding-card { box-shadow:0 12px 55px #2546260a; border-radius:20px; }
+</style>
+<main>
+  <div class="intro"><p><strong>Демо · Gecko Reminder</strong><br><small>Здесь записи сохраняются только в браузере. В Home Assistant — на сервере.</small></p><button id="reset">Сбросить демо</button></div>
+  <gecko-feeding-card></gecko-feeding-card>
+</main>
+<script src="./custom_components/gecko_reminder/frontend/gecko-feeding-card.js"></script>
+<script>
+  const storageKey = 'gecko-reminder-demo-v1';
+  const now = new Date();
+  const key = (day) => `${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,'0')}-${String(day).padStart(2,'0')}`;
+  const examples = [
+    {id:'demo1', date:key(2), insect:'cricket', count:5, supplement:'calcium', notes:''},
+    {id:'demo2', date:key(6), insect:'dubia', count:3, supplement:'vitamins', notes:'Съел всё'},
+    {id:'demo3', date:key(10), insect:'locust', count:4, supplement:'calcium', notes:''},
+    {id:'demo4', date:key(14), insect:'cricket', count:6, supplement:'calcium_d3', notes:''},
+    {id:'demo5', date:key(19), insect:'mealworm', count:2, supplement:'none', notes:''},
+  ];
+  let entries;
+  try { entries = JSON.parse(localStorage.getItem(storageKey)) || examples; } catch { entries = examples; }
+  const card = document.querySelector('gecko-feeding-card');
+  card.setConfig({entity:'sensor.gecko_reminder_feedings', title:'Эублефар · дневник кормлений'});
+  function refresh() {
+    card.hass = {
+      config: {time_zone:Intl.DateTimeFormat().resolvedOptions().timeZone},
+      states: {'sensor.gecko_reminder_feedings': {state:String(entries.length), attributes:{entries}}},
+      async callService(domain, service, data) {
+        const id = data.id || crypto.randomUUID();
+        const next = entries.filter((e) => e.id !== id);
+        if (service === 'save_feeding') next.push({...data, id});
+        localStorage.setItem(storageKey, JSON.stringify(next));
+        entries = next;
+        refresh();
+      }
+    };
+  }
+  document.querySelector('#reset').onclick = () => {
+    if (confirm('Сбросить записи демо?')) { localStorage.removeItem(storageKey); entries = examples; refresh(); }
+  };
+  refresh();
+</script>
+</html>

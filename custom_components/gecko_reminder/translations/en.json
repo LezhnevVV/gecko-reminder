@@ -1,0 +1,14 @@
+{
+  "title": "Gecko Reminder",
+  "config": {
+    "step": {
+      "user": {
+        "title": "Pet feeding journal",
+        "description": "Create a journal for one pet. Add the calendar card to your dashboard after setup.",
+        "data": {"name": "Pet name"}
+      }
+    },
+    "error": {"empty_name": "Enter a pet name"},
+    "abort": {"already_configured": "The journal is already configured"}
+  }
+}

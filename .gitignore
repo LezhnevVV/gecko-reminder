@@ -1,0 +1,26 @@
+__pycache__/
+*.py[cod]
+.venv/
+.pytest_cache/
+node_modules/
+.DS_Store
+.env
+.env.*
+.idea/
+.vscode/
+
+# Local agent instructions and settings
+AGENTS.md
+CLAUDE.md
+.agents/
+.claude/
+.codex/
+.codegraph/
+
+# Local logs and test artifacts
+*.log
+.coverage
+htmlcov/
+coverage/
+test-results/
+playwright-report/
