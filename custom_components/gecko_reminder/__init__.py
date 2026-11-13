@@ -21,7 +21,7 @@ FEEDING_SCHEMA = vol.Schema({
     vol.Optional("id"): cv.string,
     vol.Required("date"): cv.string,
     vol.Required("insect"): vol.In(INSECTS),
-    vol.Required("count"): vol.All(vol.IsInstance(int), vol.Range(min=1, max=1000)),
+    vol.Required("count"): vol.All(int, vol.Range(min=1, max=1000)),
     vol.Required("supplement"): vol.In(SUPPLEMENTS),
     vol.Optional("notes", default=""): vol.All(cv.string, vol.Length(max=500)),
 })
