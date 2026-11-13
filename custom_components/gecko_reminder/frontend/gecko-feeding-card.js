@@ -1,6 +1,13 @@
-/* Gecko Reminder 0.1.2 — no build step or external dependencies. */
+/* Gecko Reminder 0.1.7 — no build step or external dependencies. */
 const INSECTS = {cricket: "Сверчок", locust: "Саранча", dubia: "Таракан дубия", mealworm: "Мучной червь", superworm: "Зофобас", other: "Другое"};
+const INSECT_ICONS = {cricket: "🦗", locust: "🦗", dubia: "🪳", mealworm: "🐛", superworm: "🪱", other: "🐞"};
 const SUPPLEMENTS = {none: "Без добавки", calcium: "Кальций", calcium_d3: "Кальций + D3", vitamins: "Витамины"};
+const SUPPLEMENT_ICONS = {
+  none: '<path d="M6 12h12"/>',
+  calcium: '<path d="M7 4a3 3 0 0 0-5 3 3 3 0 0 0 4 4l7 7a3 3 0 0 0 4 4 3 3 0 0 0 3-5 3 3 0 0 0-4-4l-7-7a3 3 0 0 0-2-2Z"/>',
+  calcium_d3: '<circle cx="12" cy="12" r="4"/><path d="M12 2v2m0 16v2M2 12h2m16 0h2M5 5l1.5 1.5m11 11L19 19M5 19l1.5-1.5m11-11L19 5"/>',
+  vitamins: '<path d="M9 3a5 5 0 0 1 7 7l-6 6a5 5 0 0 1-7-7Z" transform="translate(2 2)"/><path d="m8.5 8.5 7 7"/>',
+};
 const escapeHTML = (value) => String(value ?? "").replace(/[&<>"']/g, (c) => ({"&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;"}[c]));
 const dateKey = (year, month, day) => `${year}-${String(month + 1).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
 
@@ -47,7 +54,7 @@ class GeckoFeedingCard extends HTMLElement {
         :host { display:block; --gecko-accent:var(--primary-color,#47745a); }
         * { box-sizing:border-box; }
         ha-card { display:block; overflow:hidden; color:var(--primary-text-color,#25352d); background:var(--card-background-color,#fff); border-radius:20px; }
-        header { padding:24px 24px 14px; display:flex; align-items:center; justify-content:space-between; gap:16px; flex-wrap:wrap; }
+        header { padding:14px 18px 8px; display:flex; align-items:center; justify-content:space-between; gap:16px; flex-wrap:wrap; }
         h2 { margin:0 0 5px; font-size:22px; font-weight:650; } p { margin:0; }
         .muted, #summary { color:var(--secondary-text-color,#67766d); font-size:13px; }
         button, input, select, textarea { font:inherit; }
@@ -56,26 +63,30 @@ class GeckoFeedingCard extends HTMLElement {
         button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-visible { outline:3px solid var(--gecko-accent); outline-offset:2px; }
         button:disabled { cursor:wait; opacity:.55; }
         .primary { background:var(--gecko-accent); color:var(--text-primary-color,#fff); border-color:transparent; }
-        nav { display:flex; align-items:center; gap:8px; padding:10px 24px 20px; flex-wrap:wrap; }
+        nav { display:flex; align-items:center; gap:8px; padding:4px 18px 8px; flex-wrap:wrap; }
         #month { text-transform:capitalize; font-size:19px; font-weight:600; margin-right:auto; }
-        .scroll { overflow-x:auto; padding:0 18px 18px; }
-        .week, #calendar { display:grid; grid-template-columns:repeat(7,minmax(112px,1fr)); min-width:820px; gap:7px; }
-        .week span { padding:8px; color:var(--secondary-text-color,#67766d); font-size:12px; }
+        .scroll { overflow-x:auto; padding:0 12px 10px; }
+        .week, #calendar { display:grid; grid-template-columns:repeat(7,minmax(112px,1fr)); min-width:820px; gap:5px; }
+        .week span { padding:5px 8px; color:var(--secondary-text-color,#67766d); font-size:12px; }
         .week span:nth-last-child(-n+2) { color:var(--gecko-accent); }
-        .day { position:relative; display:flex; flex-direction:column; min-height:145px; border:1px solid var(--divider-color,#e4e9e4); border-radius:12px; padding:8px; background:var(--secondary-background-color,#f8faf7); }
+        .day { position:relative; display:flex; flex-direction:column; min-height:100px; border:1px solid var(--divider-color,#e4e9e4); border-radius:10px; padding:6px; background:var(--secondary-background-color,#f8faf7); }
         .day.fed { background:#e4f3e7; background:color-mix(in srgb, var(--card-background-color,#fff) 80%, #78bd89); }
         .day.unfed { background:#fceef1; background:color-mix(in srgb, var(--card-background-color,#fff) 85%, #e8a1b3); }
-        .day.today { border:2px solid var(--gecko-accent); padding:7px; }
+        .day.today { border:2px solid var(--gecko-accent); padding:5px; }
         .day.empty { opacity:.25; }
-        .date-number { position:absolute; top:11px; left:13px; font-size:14px; font-weight:600; pointer-events:none; }
-        .date { display:grid; place-items:center; flex:1; width:100%; border:0; min-height:110px; padding:20px 5px; background:transparent; }
+        .date-number { position:absolute; top:8px; left:11px; font-size:14px; font-weight:600; pointer-events:none; }
+        .day.fed .date-number { position:static; min-height:23px; padding:1px 5px; }
+        .date { display:grid; place-items:center; flex:1; width:100%; border:0; min-height:76px; padding:10px 5px; background:transparent; }
         .date span { color:var(--gecko-accent); font-size:48px; line-height:1; font-weight:400; }
-        .feeding { text-align:left; display:block; width:100%; margin-top:6px; padding:8px; background:var(--card-background-color,#fff); border-radius:8px; overflow-wrap:anywhere; }
-        .feeding strong { display:block; font-size:12px; line-height:1.5; }
-        .supplement { display:inline-block; margin-top:5px; font-size:10px; padding:3px 5px; border-radius:5px; background:var(--secondary-background-color,#edf1ed); }
-        .supplement.calcium, .supplement.calcium_d3 { color:var(--primary-text-color,#334c66); border-left:3px solid #7babc2; }
-        .supplement.vitamins { color:var(--primary-text-color,#6b5426); border-left:3px solid #cba357; }
-        footer { padding:0 24px 20px; display:flex; gap:12px; flex-wrap:wrap; font-size:12px; color:var(--secondary-text-color,#67766d); }
+        .feeding { text-align:left; display:flex; flex-wrap:wrap; align-items:center; gap:5px; width:100%; margin-top:3px; padding:5px; background:var(--card-background-color,#fff); border-radius:8px; overflow-wrap:anywhere; }
+        .feeding strong { display:flex; align-items:center; gap:4px; flex:1 0 auto; min-width:max-content; font-size:18px; line-height:1.2; white-space:nowrap; }
+        .insect-icon { font-size:30px; line-height:1; }
+        .supplement { display:inline-flex; align-items:center; justify-content:center; width:34px; height:34px; flex-shrink:0; margin-top:0; border-radius:50%; vertical-align:middle; background:#edf0f3; color:#52606d; }
+        .supplement svg { width:21px; height:21px; fill:none; stroke:currentColor; stroke-width:1.8; stroke-linecap:round; stroke-linejoin:round; }
+        .supplement.calcium { background:#dceeff; color:#21629a; }
+        .supplement.calcium_d3 { background:#fff0c2; color:#946000; }
+        .supplement.vitamins { background:#eee0ff; color:#763aab; }
+        footer { padding:0 18px 10px; display:flex; gap:8px; flex-wrap:wrap; font-size:12px; color:var(--secondary-text-color,#67766d); }
         #status { margin:0 24px 12px; font-size:14px; color:var(--error-color,#b3261e); } #status:empty { display:none; }
         dialog { width:min(460px,calc(100vw - 24px)); max-height:90vh; overflow:auto; padding:24px; border:1px solid var(--divider-color,#dae3dc); border-radius:18px; background:var(--card-background-color,#fff); color:var(--primary-text-color,#25352d); }
         dialog::backdrop { background:#101d1966; } h3 { margin:0 0 20px; font-size:21px; }
@@ -84,7 +95,7 @@ class GeckoFeedingCard extends HTMLElement {
         textarea { resize:vertical; } .two { display:grid; grid-template-columns:1fr 1fr; gap:12px; }
         .actions { display:flex; gap:8px; flex-wrap:wrap; margin-top:8px; } .actions .primary { margin-left:auto; }
         .danger { color:var(--error-color,#b3261e); } #form-error { color:var(--error-color,#b3261e); font-size:13px; }
-        @media(max-width:500px) { header { padding:18px 16px 12px; } nav { padding:8px 16px 16px; } .scroll { padding:0 10px 16px; } h2 { font-size:20px; } }
+        @media(max-width:500px) { header { padding:12px 12px 6px; } nav { padding:4px 12px 8px; } .scroll { padding:0 8px 8px; } h2 { font-size:20px; } }
       </style>
       <ha-card>
         <header><div><h2>${escapeHTML(this._config.title || "Дневник эублефара")}</h2><p id="summary"></p></div><button class="primary" data-action="add">+ Кормление</button></header>
@@ -100,7 +111,7 @@ class GeckoFeedingCard extends HTMLElement {
         <h3 id="form-title">Кормление</h3>
         <label>Дата кормления<input name="date" type="date" required></label>
         <div class="two"><label>Насекомое<select name="insect">${Object.entries(INSECTS).map(([k,v]) => `<option value="${k}">${v}</option>`).join("")}</select></label>
-        <label>Количество, шт.<input name="count" type="number" min="1" max="1000" step="1" value="1" required></label></div>
+        <label>Количество, шт.<input name="count" type="number" min="1" max="99" step="1" value="1" required></label></div>
         <label>Добавка<select name="supplement">${Object.entries(SUPPLEMENTS).map(([k,v]) => `<option value="${k}">${v}</option>`).join("")}</select></label>
         <label>Заметка<textarea name="notes" rows="2" maxlength="500" placeholder="Необязательно"></textarea></label>
         <p id="form-error" role="alert"></p>
@@ -134,8 +145,11 @@ class GeckoFeedingCard extends HTMLElement {
     for (let day = 1; day <= days; day++) {
       const key = dateKey(year, month, day);
       const feedingStatus = this._available ? (byDay.has(key) ? "fed" : "unfed") : "";
-      html += `<div class="day ${key === this._today() ? "today" : ""} ${feedingStatus}"><span class="date-number">${day}</span><button class="date" data-date="${key}" ${!this._available ? "disabled" : ""} aria-label="Добавить кормление ${key}"><span aria-hidden="true">+</span></button>`;
-      html += (byDay.get(key) || []).map((e) => `<button class="feeding" data-id="${escapeHTML(e.id)}" title="${escapeHTML(e.notes || "Изменить кормление")}" aria-label="${escapeHTML(`${key}: ${INSECTS[e.insect] || e.insect}, ${e.count} шт., ${SUPPLEMENTS[e.supplement] || e.supplement}. Изменить`)}"><strong>${escapeHTML(INSECTS[e.insect] || e.insect)} · ${escapeHTML(e.count)} шт.</strong><span class="supplement ${escapeHTML(e.supplement)}">${escapeHTML(SUPPLEMENTS[e.supplement] || e.supplement)}</span>${e.notes ? '<span aria-label="Есть заметка"> · ✎</span>' : ""}</button>`).join("");
+      html += `<div class="day ${key === this._today() ? "today" : ""} ${feedingStatus}"><span class="date-number">${day}</span>`;
+      if (!byDay.has(key)) {
+        html += `<button class="date" data-date="${key}" ${!this._available ? "disabled" : ""} aria-label="Добавить кормление ${key}"><span aria-hidden="true">+</span></button>`;
+      }
+      html += (byDay.get(key) || []).map((e) => `<button class="feeding" data-id="${escapeHTML(e.id)}" title="${escapeHTML(e.notes || "Изменить кормление")}" aria-label="${escapeHTML(`${key}: ${INSECTS[e.insect] || e.insect}, ${e.count} шт., ${SUPPLEMENTS[e.supplement] || e.supplement}. Изменить`)}"><strong><span class="insect-icon" role="img" title="${escapeHTML(INSECTS[e.insect] || e.insect)}" aria-label="${escapeHTML(INSECTS[e.insect] || e.insect)}">${escapeHTML(INSECT_ICONS[e.insect] || INSECT_ICONS.other)}</span><span>× ${escapeHTML(e.count)}</span></strong><span class="supplement ${escapeHTML(e.supplement)}" role="img" title="${escapeHTML(SUPPLEMENTS[e.supplement] || e.supplement)}" aria-label="${escapeHTML(SUPPLEMENTS[e.supplement] || e.supplement)}"><svg viewBox="0 0 24 24" aria-hidden="true">${SUPPLEMENT_ICONS[e.supplement] || SUPPLEMENT_ICONS.none}</svg></span>${e.notes ? '<span aria-label="Есть заметка"> · ✎</span>' : ""}</button>`).join("");
       html += "</div>";
     }
     html += '<div class="day empty" aria-hidden="true"></div>'.repeat((7 - (offset + days) % 7) % 7);

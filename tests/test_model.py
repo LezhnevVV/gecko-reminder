@@ -68,9 +68,19 @@ class JournalTests(unittest.IsolatedAsyncioTestCase):
             await self.journal.delete("missing")
         self.assertIsNone(self.saved)
 
+    async def test_count_boundaries_on_create_and_edit(self):
+        await self.journal.upsert({**FEEDING, "count": 1})
+        entry_id = self.journal.entries[0]["id"]
+        await self.journal.upsert({**FEEDING, "count": 99}, entry_id)
+        self.assertEqual(self.journal.entries[0]["count"], 99)
+        with self.assertRaises(ValueError):
+            await self.journal.upsert({**FEEDING, "count": 100}, entry_id)
+        self.assertEqual(self.journal.entries[0]["count"], 99)
+        self.assertEqual(self.saved["entries"][0]["count"], 99)
+
     async def test_validation(self):
         for patch in ({"date": "2026-02-30"}, {"date": "20261111"}, {"date": None},
-                      {"count": 0}, {"count": 1.5}, {"count": True}, {"count": 1001},
+                      {"count": 0}, {"count": 1.5}, {"count": True}, {"count": 100}, {"count": 1000},
                       {"count": "3"}, {"insect": "unknown"}, {"supplement": "unknown"},
                       {"notes": "x" * 501}, {"notes": None}, {"extra": "field"}):
             with self.subTest(patch=patch), self.assertRaises(ValueError):

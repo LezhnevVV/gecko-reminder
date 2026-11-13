@@ -20,8 +20,8 @@ def validate_feeding(data):
         raise ValueError("Дата должна иметь формат YYYY-MM-DD")
     if data.get("insect") not in INSECTS:
         raise ValueError("Выберите вид насекомого")
-    if type(data.get("count")) is not int or not 1 <= data["count"] <= 1000:
-        raise ValueError("Количество должно быть целым числом от 1 до 1000")
+    if type(data.get("count")) is not int or not 1 <= data["count"] <= 99:
+        raise ValueError("Количество должно быть целым числом от 1 до 99")
     if data.get("supplement") not in SUPPLEMENTS:
         raise ValueError("Выберите добавку")
     notes = data.get("notes", "")

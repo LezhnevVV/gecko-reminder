@@ -51,11 +51,13 @@ class IntegrationImportTests(unittest.TestCase):
         cls.schema = integration.FEEDING_SCHEMA
 
     def test_integration_import_and_valid_service_data(self):
-        feeding = {"date": "2026-11-13", "insect": "cricket", "count": 5, "supplement": "calcium"}
-        self.assertEqual(self.schema(feeding), {**feeding, "notes": ""})
+        for count in (1, 5, 99):
+            with self.subTest(count=count):
+                feeding = {"date": "2026-11-13", "insect": "cricket", "count": count, "supplement": "calcium"}
+                self.assertEqual(self.schema(feeding), {**feeding, "notes": ""})
 
     def test_service_schema_rejects_invalid_count(self):
-        for count in (0, 1001, 1.5, "5", None):
+        for count in (0, 100, 1000, 1.5, "5", None):
             with self.subTest(count=count), self.assertRaises(vol.Invalid):
                 self.schema({"date": "2026-11-13", "insect": "cricket",
                              "count": count, "supplement": "none"})
