@@ -1,4 +1,4 @@
-/* Gecko Reminder 0.1.7 — no build step or external dependencies. */
+/* Gecko Reminder 0.1.8 — no build step or external dependencies. */
 const INSECTS = {cricket: "Сверчок", locust: "Саранча", dubia: "Таракан дубия", mealworm: "Мучной червь", superworm: "Зофобас", other: "Другое"};
 const INSECT_ICONS = {cricket: "🦗", locust: "🦗", dubia: "🪳", mealworm: "🐛", superworm: "🪱", other: "🐞"};
 const SUPPLEMENTS = {none: "Без добавки", calcium: "Кальций", calcium_d3: "Кальций + D3", vitamins: "Витамины"};
@@ -51,11 +51,11 @@ class GeckoFeedingCard extends HTMLElement {
   _renderShell() {
     this.shadowRoot.innerHTML = `
       <style>
-        :host { display:block; --gecko-accent:var(--primary-color,#47745a); }
+        :host { display:block; container-type:inline-size; min-width:0; --gecko-accent:var(--primary-color,#47745a); }
         * { box-sizing:border-box; }
         ha-card { display:block; overflow:hidden; color:var(--primary-text-color,#25352d); background:var(--card-background-color,#fff); border-radius:20px; }
-        header { padding:14px 18px 8px; display:flex; align-items:center; justify-content:space-between; gap:16px; flex-wrap:wrap; }
-        h2 { margin:0 0 5px; font-size:22px; font-weight:650; } p { margin:0; }
+        p { margin:0; }
+        #summary { padding:12px 18px 8px; }
         .muted, #summary { color:var(--secondary-text-color,#67766d); font-size:13px; }
         button, input, select, textarea { font:inherit; }
         button { cursor:pointer; min-height:42px; border:1px solid var(--divider-color,#dae3dc); border-radius:10px; padding:8px 13px; background:var(--card-background-color,#fff); color:inherit; }
@@ -66,7 +66,7 @@ class GeckoFeedingCard extends HTMLElement {
         nav { display:flex; align-items:center; gap:8px; padding:4px 18px 8px; flex-wrap:wrap; }
         #month { text-transform:capitalize; font-size:19px; font-weight:600; margin-right:auto; }
         .scroll { overflow-x:auto; padding:0 12px 10px; }
-        .week, #calendar { display:grid; grid-template-columns:repeat(7,minmax(112px,1fr)); min-width:820px; gap:5px; }
+        .week, #calendar { display:grid; grid-template-columns:repeat(7,minmax(0,1fr)); min-width:0; gap:5px; }
         .week span { padding:5px 8px; color:var(--secondary-text-color,#67766d); font-size:12px; }
         .week span:nth-last-child(-n+2) { color:var(--gecko-accent); }
         .day { position:relative; display:flex; flex-direction:column; min-height:100px; border:1px solid var(--divider-color,#e4e9e4); border-radius:10px; padding:6px; background:var(--secondary-background-color,#f8faf7); }
@@ -95,17 +95,38 @@ class GeckoFeedingCard extends HTMLElement {
         textarea { resize:vertical; } .two { display:grid; grid-template-columns:1fr 1fr; gap:12px; }
         .actions { display:flex; gap:8px; flex-wrap:wrap; margin-top:8px; } .actions .primary { margin-left:auto; }
         .danger { color:var(--error-color,#b3261e); } #form-error { color:var(--error-color,#b3261e); font-size:13px; }
-        @media(max-width:500px) { header { padding:12px 12px 6px; } nav { padding:4px 12px 8px; } .scroll { padding:0 8px 8px; } h2 { font-size:20px; } }
+        @container (max-width:600px) {
+          #summary { padding:10px 8px 6px; font-size:12px; }
+          nav { gap:4px; padding:4px 8px 8px; }
+          nav button { padding:6px 10px; }
+          #month { font-size:16px; }
+          .scroll { padding:0 4px 8px; }
+          .week, #calendar { gap:2px; }
+          .week span { padding:5px 0; text-align:center; font-size:10px; }
+          .day { min-width:0; min-height:96px; padding:2px; border-radius:7px; }
+          .day.today { padding:1px; }
+          .date-number { top:5px; left:5px; font-size:12px; }
+          .day.fed .date-number { min-height:20px; padding:1px 2px; }
+          .date { min-width:0; min-height:76px; padding:8px 0; }
+          .date span { font-size:32px; }
+          .feeding { flex-direction:column; flex-wrap:nowrap; gap:3px; min-width:0; margin-top:2px; padding:4px 1px; border-radius:5px; }
+          .feeding strong { flex:initial; flex-direction:column; gap:1px; min-width:0; font-size:11px; }
+          .insect-icon { font-size:22px; }
+          .supplement { width:22px; height:22px; }
+          .supplement svg { width:15px; height:15px; }
+          footer { padding:0 8px 8px; font-size:11px; }
+          #status { margin:0 8px 8px; overflow-wrap:anywhere; }
+        }
       </style>
       <ha-card>
-        <header><div><h2>${escapeHTML(this._config.title || "Дневник эублефара")}</h2><p id="summary"></p></div><button class="primary" data-action="add">+ Кормление</button></header>
+        <p id="summary"></p>
         <nav aria-label="Выбор месяца"><span id="month"></span><button data-action="prev" aria-label="Предыдущий месяц">←</button><button data-action="today">Сегодня</button><button data-action="next" aria-label="Следующий месяц">→</button></nav>
         <p id="status" role="status"></p>
-        <div class="scroll" tabindex="0" aria-label="Календарь кормлений, прокручивается горизонтально">
+        <div class="scroll" tabindex="0" aria-label="Календарь кормлений">
           <div class="week">${["ПН", "ВТ", "СР", "ЧТ", "ПТ", "СБ", "ВС"].map((d) => `<span>${d}</span>`).join("")}</div>
           <div id="calendar"></div>
         </div>
-        <footer><span>Нажмите на дату, чтобы добавить кормление</span><span>На телефоне листайте календарь вбок →</span></footer>
+        <footer><span>Нажмите на дату, чтобы добавить кормление</span></footer>
       </ha-card>
       <dialog aria-labelledby="form-title"><form>
         <h3 id="form-title">Кормление</h3>
@@ -131,7 +152,6 @@ class GeckoFeedingCard extends HTMLElement {
     this._available = !!state && !["unavailable", "unknown"].includes(state.state) && Array.isArray(state.attributes.entries);
     this._entries = this._available ? state.attributes.entries : [];
     this.shadowRoot.querySelector("#status").textContent = this._available ? "" : `Датчик ${this._config.entity} недоступен. Проверьте интеграцию и entity в настройках карточки.`;
-    this.shadowRoot.querySelector('[data-action="add"]').disabled = !this._available;
     const year = this._month.getFullYear(), month = this._month.getMonth();
     this.shadowRoot.querySelector("#month").textContent = this._month.toLocaleDateString("ru-RU", {month: "long", year: "numeric"});
     const prefix = dateKey(year, month, 1).slice(0, 7);
@@ -166,8 +186,8 @@ class GeckoFeedingCard extends HTMLElement {
     } else if (action === "today") {
       this._month = null;
       this._refresh();
-    } else if (action === "add" || button.dataset.date) {
-      if (this._available) this._open({date: button.dataset.date || this._today(), count: 1, insect: "cricket", supplement: "none", notes: ""});
+    } else if (button.dataset.date) {
+      if (this._available) this._open({date: button.dataset.date, count: 1, insect: "cricket", supplement: "none", notes: ""});
     } else if (button.dataset.id) {
       const entry = this._entries.find((e) => e.id === button.dataset.id);
       if (entry) this._open(entry);

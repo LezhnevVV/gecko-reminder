@@ -58,7 +58,7 @@ test('Multiple feedings, month filtering, and HTML escaping', () => {
 test('Unavailable sensor disables adding entries', () => {
   const {card, get} = makeCard();
   card.hass = {states: {'sensor.gecko': {state: 'unavailable', attributes: {}}}};
-  assert.equal(get('[data-action="add"]').disabled, true);
+  assert.equal((get('#calendar').innerHTML.match(/data-date="[^"]+" disabled/g) || []).length, 29);
   assert.match(get('#status').textContent, /недоступен/);
 });
 
