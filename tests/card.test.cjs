@@ -40,7 +40,7 @@ test('Leap month displays all days, Monday offset, and today', () => {
   const html = get('#calendar').innerHTML;
   assert.equal((html.match(/data-date=/g) || []).length, 29);
   assert.equal((html.match(/class="day empty"/g) || []).length, 6);
-  assert.match(html, /class="day today".*?data-date="2024-02-29"/);
+  assert.match(html, /class="day today unfed".*?data-date="2024-02-29"/);
 });
 
 test('Multiple feedings, month filtering, and HTML escaping', () => {

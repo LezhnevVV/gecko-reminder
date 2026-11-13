@@ -1,4 +1,4 @@
-/* Gecko Reminder 0.1.0 — no build step or external dependencies. */
+/* Gecko Reminder 0.1.2 — no build step or external dependencies. */
 const INSECTS = {cricket: "Сверчок", locust: "Саранча", dubia: "Таракан дубия", mealworm: "Мучной червь", superworm: "Зофобас", other: "Другое"};
 const SUPPLEMENTS = {none: "Без добавки", calcium: "Кальций", calcium_d3: "Кальций + D3", vitamins: "Витамины"};
 const escapeHTML = (value) => String(value ?? "").replace(/[&<>"']/g, (c) => ({"&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;"}[c]));
@@ -49,7 +49,6 @@ class GeckoFeedingCard extends HTMLElement {
         ha-card { display:block; overflow:hidden; color:var(--primary-text-color,#25352d); background:var(--card-background-color,#fff); border-radius:20px; }
         header { padding:24px 24px 14px; display:flex; align-items:center; justify-content:space-between; gap:16px; flex-wrap:wrap; }
         h2 { margin:0 0 5px; font-size:22px; font-weight:650; } p { margin:0; }
-        .eyebrow { color:var(--secondary-text-color,#67766d); font-size:12px; letter-spacing:1.5px; margin-bottom:8px; }
         .muted, #summary { color:var(--secondary-text-color,#67766d); font-size:13px; }
         button, input, select, textarea { font:inherit; }
         button { cursor:pointer; min-height:42px; border:1px solid var(--divider-color,#dae3dc); border-radius:10px; padding:8px 13px; background:var(--card-background-color,#fff); color:inherit; }
@@ -63,11 +62,14 @@ class GeckoFeedingCard extends HTMLElement {
         .week, #calendar { display:grid; grid-template-columns:repeat(7,minmax(112px,1fr)); min-width:820px; gap:7px; }
         .week span { padding:8px; color:var(--secondary-text-color,#67766d); font-size:12px; }
         .week span:nth-last-child(-n+2) { color:var(--gecko-accent); }
-        .day { min-height:145px; border:1px solid var(--divider-color,#e4e9e4); border-radius:12px; padding:8px; background:var(--secondary-background-color,#f8faf7); }
+        .day { position:relative; display:flex; flex-direction:column; min-height:145px; border:1px solid var(--divider-color,#e4e9e4); border-radius:12px; padding:8px; background:var(--secondary-background-color,#f8faf7); }
+        .day.fed { background:#e4f3e7; background:color-mix(in srgb, var(--card-background-color,#fff) 80%, #78bd89); }
+        .day.unfed { background:#fceef1; background:color-mix(in srgb, var(--card-background-color,#fff) 85%, #e8a1b3); }
         .day.today { border:2px solid var(--gecko-accent); padding:7px; }
         .day.empty { opacity:.25; }
-        .date { display:flex; justify-content:space-between; align-items:center; width:100%; border:0; min-height:34px; padding:3px 5px; background:transparent; font-size:14px; font-weight:600; }
-        .date span { color:var(--gecko-accent); font-size:20px; font-weight:400; }
+        .date-number { position:absolute; top:11px; left:13px; font-size:14px; font-weight:600; pointer-events:none; }
+        .date { display:grid; place-items:center; flex:1; width:100%; border:0; min-height:110px; padding:20px 5px; background:transparent; }
+        .date span { color:var(--gecko-accent); font-size:48px; line-height:1; font-weight:400; }
         .feeding { text-align:left; display:block; width:100%; margin-top:6px; padding:8px; background:var(--card-background-color,#fff); border-radius:8px; overflow-wrap:anywhere; }
         .feeding strong { display:block; font-size:12px; line-height:1.5; }
         .supplement { display:inline-block; margin-top:5px; font-size:10px; padding:3px 5px; border-radius:5px; background:var(--secondary-background-color,#edf1ed); }
@@ -85,7 +87,7 @@ class GeckoFeedingCard extends HTMLElement {
         @media(max-width:500px) { header { padding:18px 16px 12px; } nav { padding:8px 16px 16px; } .scroll { padding:0 10px 16px; } h2 { font-size:20px; } }
       </style>
       <ha-card>
-        <header><div><p class="eyebrow">GECKO REMINDER</p><h2>${escapeHTML(this._config.title || "Дневник эублефара")}</h2><p id="summary"></p></div><button class="primary" data-action="add">+ Кормление</button></header>
+        <header><div><h2>${escapeHTML(this._config.title || "Дневник эублефара")}</h2><p id="summary"></p></div><button class="primary" data-action="add">+ Кормление</button></header>
         <nav aria-label="Выбор месяца"><span id="month"></span><button data-action="prev" aria-label="Предыдущий месяц">←</button><button data-action="today">Сегодня</button><button data-action="next" aria-label="Следующий месяц">→</button></nav>
         <p id="status" role="status"></p>
         <div class="scroll" tabindex="0" aria-label="Календарь кормлений, прокручивается горизонтально">
@@ -131,7 +133,8 @@ class GeckoFeedingCard extends HTMLElement {
     let html = '<div class="day empty" aria-hidden="true"></div>'.repeat(offset);
     for (let day = 1; day <= days; day++) {
       const key = dateKey(year, month, day);
-      html += `<div class="day ${key === this._today() ? "today" : ""}"><button class="date" data-date="${key}" ${!this._available ? "disabled" : ""} aria-label="Добавить кормление ${key}">${day}<span aria-hidden="true">+</span></button>`;
+      const feedingStatus = this._available ? (byDay.has(key) ? "fed" : "unfed") : "";
+      html += `<div class="day ${key === this._today() ? "today" : ""} ${feedingStatus}"><span class="date-number">${day}</span><button class="date" data-date="${key}" ${!this._available ? "disabled" : ""} aria-label="Добавить кормление ${key}"><span aria-hidden="true">+</span></button>`;
       html += (byDay.get(key) || []).map((e) => `<button class="feeding" data-id="${escapeHTML(e.id)}" title="${escapeHTML(e.notes || "Изменить кормление")}" aria-label="${escapeHTML(`${key}: ${INSECTS[e.insect] || e.insect}, ${e.count} шт., ${SUPPLEMENTS[e.supplement] || e.supplement}. Изменить`)}"><strong>${escapeHTML(INSECTS[e.insect] || e.insect)} · ${escapeHTML(e.count)} шт.</strong><span class="supplement ${escapeHTML(e.supplement)}">${escapeHTML(SUPPLEMENTS[e.supplement] || e.supplement)}</span>${e.notes ? '<span aria-label="Есть заметка"> · ✎</span>' : ""}</button>`).join("");
       html += "</div>";
     }
